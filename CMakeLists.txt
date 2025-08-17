@@ -1,8 +1,10 @@
 cmake_minimum_required(VERSION 3.31)
 project(pipicap C)
 
+find_package(SDL3 REQUIRED CONFIG REQUIRED COMPONENTS SDL3-shared)
+
 set(CMAKE_C_STANDARD 11)
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -Werror -pedantic")
+#set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -Werror -pedantic")
 
 set(PIPICAP_SOURCE_FILES
         src/emulator.c
@@ -11,3 +13,4 @@ set(PIPICAP_SOURCE_FILES
 
 add_executable(pipicap main.c ${PIPICAP_SOURCE_FILES})
 target_include_directories(pipicap PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include")
+target_link_libraries(pipicap PRIVATE SDL3::SDL3)

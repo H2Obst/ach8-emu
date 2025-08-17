@@ -3,12 +3,13 @@
 
 int main(void)
 {
-    struct emulator emu;
-    load_font_in_mem(&emu);
-    load_instructions_in_ram(&emu);
-    emu.pc = MEM_START_PROGRAM;
-    uint8_t a = 0xff;
-    a+=2;
-    printf("%u\n", a);
+    // struct emulator emulator;
+    // setup_emulator(&emulator);
+    // launch(&emulator);
+    uint16_t op_code = 0x3faa;
+    uint8_t v_register = op_code >> 8;
+    v_register &= 0x0f;
+    uint8_t value_to_compare = op_code & 0x00ff;
+    printf("%u\n", v_register);
     return 0;
 }

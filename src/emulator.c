@@ -1,7 +1,9 @@
 #include <emulator.h>
+#include <instructions.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include <SDL3/SDL.h>
 
 void load_font_in_mem(struct emulator* const emulator)
 {
@@ -34,13 +36,18 @@ void load_instructions_in_ram(struct emulator* const emulator)
         fprintf(stderr, "Failed to open ROM");
         return;
     }
-    fread(&emulator->ram[MEM_START_PROGRAM], 1, 4096 - MEM_START_PROGRAM, rom);
+    fread(&emulator->ram[MEM_START_PROGRAM], 1, RAM_SIZE - MEM_START_PROGRAM, rom);
     fclose(rom);
 }
 
-uint16_t get_op_code(const struct emulator* const emulator)
+uint16_t get_op_code(struct emulator* const emulator)
 {
-    return emulator->ram[emulator->pc] << 8 | emulator->ram[emulator->pc + 1];
+    uint16_t op_code = emulator->ram[emulator->pc] << 8 | emulator->ram[emulator->pc + 1];
+    emulator->pc += 2;
+    if(emulator->pc >= RAM_SIZE) {  // TODO verify if that is necessary
+        emulator->pc = MEM_START_PROGRAM;
+    }
+    return op_code;
 }
 
 void run_op_code(struct emulator* const emulator, const uint16_t op_code)
@@ -50,10 +57,10 @@ void run_op_code(struct emulator* const emulator, const uint16_t op_code)
         case 0x0000:
             switch(op_code) {
                 case 0x00e0:
-                    printf("CLS\n");
+                    clear_screen(emulator);
                     break;
                 case 0x00ee:
-                    printf("RET\n");
+                    return_from_subroutine(emulator);
                     break;
                 default:
                     printf("SYS addr\n");
@@ -61,7 +68,7 @@ void run_op_code(struct emulator* const emulator, const uint16_t op_code)
             }
             break;
         case 0x1000:
-            printf("JP\n");
+            jump_to_location(emulator, op_code);
             break;
         case 0x2000:
             printf("CALL\n");
@@ -180,10 +187,63 @@ void run_op_code(struct emulator* const emulator, const uint16_t op_code)
         default:
             break;
     }
-    emulator->pc += 2;
 }
 
-void print_emulator(const struct emulator* emulator)
+void setup_emulator(struct emulator* emulator)
 {
-    printf("%lu\n", sizeof(emulator->ram) - 0x200);
+    load_font_in_mem(emulator);
+    load_instructions_in_ram(emulator);
+    emulator->pc = MEM_START_PROGRAM;
+    emulator->draw_screen = 0;
+}
+
+void launch(struct emulator* emulator)
+{
+    int running = 1;
+    SDL_Renderer* renderer;
+    SDL_Window* window;
+    SDL_Texture* texture;
+    SDL_Event event;
+    uint32_t pixels[CHIP8_WIDTH * CHIP8_HEIGHT];
+
+    if(!SDL_Init(SDL_INIT_VIDEO)) {
+        SDL_Log("Couldn't initialize SDL: %s", SDL_GetError());
+        return;
+    }
+    if(!SDL_CreateWindowAndRenderer(
+        "Chip8",
+        CHIP8_WIDTH * PIXEL_SCALE,
+        CHIP8_HEIGHT * PIXEL_SCALE,
+        SDL_WINDOW_RESIZABLE,
+        &window,
+        &renderer
+    )) {
+        SDL_Log("Couldn't initialize SDL: %s", SDL_GetError());
+        return;
+    }
+    texture = SDL_CreateTexture(
+        renderer,
+        SDL_PIXELFORMAT_RGBA8888,
+        SDL_TEXTUREACCESS_STREAMING,
+        CHIP8_WIDTH,
+        CHIP8_HEIGHT
+    );
+    for(int i = 0; i < CHIP8_WIDTH * CHIP8_HEIGHT; i++) {
+        pixels[i] = 0xffffffff;
+    }
+    SDL_UpdateTexture(texture, NULL, pixels, CHIP8_WIDTH * sizeof(uint32_t));
+    SDL_RenderClear(renderer);
+    SDL_RenderTexture(renderer, texture, NULL, NULL);
+    SDL_RenderPresent(renderer);
+    while(running) {
+        while (SDL_PollEvent(&event)) {
+            if(event.type == SDL_EVENT_QUIT) {
+                running = 0;
+            }
+        }
+        get_op_code(emulator);
+        //run_op_code(emulator, op_code);
+    }
+    SDL_DestroyWindow(window);
+    SDL_Quit();
 }
